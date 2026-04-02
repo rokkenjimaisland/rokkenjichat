@@ -1,0 +1,1877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>wolfchat.</title>
+
+<!-- Minecraftia font -->
+<link href="https://fonts.cdnfonts.com/css/minecraftia" rel="stylesheet">
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+width: 100%;
+height: 100%;
+font-family: 'Minecraftia', monospace;
+background: black;
+color: #c7d2fe;
+overflow: hidden;
+}
+
+body {
+background: linear-gradient(270deg, #000000, #020617, #020617, #000814);
+background-size: 400% 400%;
+animation: bgFade 12s ease infinite;
+}
+
+@keyframes bgFade {
+0% { background-position: 0% 50%; }
+50% { background-position: 100% 50%; }
+100% { background-position: 0% 50%; }
+}
+
+@keyframes shake {
+0% { transform: translateX(0); }
+25% { transform: translateX(-5px); }
+50% { transform: translateX(5px); }
+75% { transform: translateX(-5px); }
+100% { transform: translateX(0); }
+}
+
+/* CHAT */
+.chat-container { width: 100vw; height: 100vh; height: 100dvh; display: flex; flex-direction: column; position: relative; }
+
+.chat-loading {
+position: absolute;
+top: 0; left: 0;
+width: 100%;
+height: 100%;
+background: rgba(0,0,0,0.85);
+display: flex;
+flex-direction: column;
+justify-content: center;
+align-items: center;
+color: #c7d2fe;
+font-family: 'Minecraftia', monospace;
+font-size: 14px;
+z-index: 1000;
+transition: opacity 0.5s ease;
+}
+
+.loader {
+width: 40px;
+height: 40px;
+border: 4px solid #1e3a8a;
+border-top: 4px solid #2563eb;
+border-radius: 50%;
+animation: spin 1s linear infinite;
+margin-bottom: 10px;
+}
+
+@keyframes spin {
+0% { transform: rotate(0deg); }
+100% { transform: rotate(360deg); }
+}
+
+.chat-box {
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.chat-box.loaded { opacity: 1; }
+
+.message { display: flex; margin-bottom: 14px; align-items: flex-end; animation: msgIn 0.25s ease-out; }
+@keyframes msgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.message.user { justify-content: flex-end; }
+.message.other { justify-content: flex-start; }
+.message img { width: 36px; height: 36px; border: 2px solid #1e3a8a; border-radius: 4px; margin: 0 8px; }
+.bubble { max-width: 65%; padding: 12px 16px; border: 2px solid #1e3a8a; background: #020617; font-size: 14px; position: relative; }
+.user .bubble { background: linear-gradient(#0b1f4b, #081636); }
+.name { font-size: 11px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+.name .owner-star { color: orange; font-size: 12px; }
+.time { font-size: 9px; opacity: 0.6; margin-top: 6px; text-align: right; }
+
+/* DELETE BUTTON - PIXEL TRASHCAN */
+.bubble button {
+background: black;
+border: 2px solid grey;
+color: grey;
+font-family: monospace;
+font-weight: bold;
+cursor: pointer;
+padding: 2px 4px;
+margin-left: 6px;
+}
+.bubble button:hover { background: grey; color: black; }
+
+/* INPUT */
+.input-box { display: flex; align-items: center; border-top: 2px solid #1e3a8a; }
+.input-box input { flex: 1; padding: 14px; background: transparent; border: none; color: #e0e7ff; font-family: inherit; }
+.input-box button { padding: 14px 22px; font-family: inherit; background: #1e3a8a; border: none; color: white; cursor: pointer; }
+
+.connection-indicator {
+width: 14px;
+height: 14px;
+border-radius: 50%;
+background: gray;
+margin: 0 8px 0 10px; /* move slightly to right */
+flex-shrink: 0;
+cursor: help;
+transition: background 0.3s ease;
+}
+
+/* SETTINGS */
+.settings-btn { position: fixed; top: 12px; right: 12px; background: #020617; border: 2px solid #1e3a8a; color: #bfdbfe; font-family: inherit; padding: 6px 10px; cursor: pointer; z-index: 1001; }
+.settings-panel { position: fixed; top: 0; right: -400px; width: 400px; height: 100%; background: #020617; border-left: 2px solid #1e3a8a; padding: 14px; transition: right 0.35s ease; z-index: 1000; font-family: inherit; display: flex; flex-direction: column; overflow-y: auto; }
+.settings-panel.open { right: 0; }
+.settings-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.tab { flex: 1; font-family: inherit; background: #020617; border: 2px solid #1e3a8a; color: #bfdbfe; padding: 6px; cursor: pointer; font-size: 11px; }
+.tab.active { background: #1e3a8a; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+button {
+  font-family: inherit;
+  font-size: 11px;
+  text-transform: lowercase;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #1e3a8a;
+  background: #0f172a;
+  color: #c7d2fe;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+
+button:hover {
+  background: #1e3a8a;
+  transform: translateY(-1px);
+}
+
+.tab-btn {
+  width: 100%;
+  margin-top: 6px;
+}
+
+label { display: block; font-size: 11px; margin: 8px 0 4px; }
+input[type="file"], input[type="text"], input[type="password"] { width: 100%; padding: 6px; font-family: inherit; background: black; border: 2px solid #1e3a8a; color: #e0e7ff; }
+
+#loginFeedback { display: inline-block; margin-left: 6px; font-size: 11px; }
+
+/* SONGS LIST */
+.song { padding: 8px; border: 2px solid #1e3a8a; margin-top: 6px; font-size: 11px; }
+.song:hover { background: #1e3a8a; cursor: pointer; }
+
+/* PROFILE MODAL */
+.profile-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 2000;
+}
+
+.profile-modal.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.profile-card {
+  --profile-color: #1e3a8a; /* default fallback */
+
+  width: auto;
+  min-width: 340px;
+  max-width: 90vw;
+
+  background: #111827;
+  border: 2px solid var(--profile-color);
+  border-radius: 8px;
+
+  overflow-wrap: break-word;
+  word-break: break-word;
+
+  animation: profileIn 0.25s ease;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.profile-card.listening {
+  box-shadow:
+    0 0 12px var(--profile-color),
+    0 0 25px var(--profile-color),
+    0 0 40px var(--profile-color);
+}
+
+@keyframes profileIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.profile-banner {
+  height: 80px;
+  background: linear-gradient(135deg,#1e3a8a,#2563eb);
+}
+
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  border: 4px solid #111827;
+  border-radius: 50%;
+  margin-top: -40px;
+  margin-left: 16px;
+  background: black;
+}
+
+.profile-content {
+  padding: 16px;
+  height: fit-content;
+}
+
+.profile-display {
+  font-size: 16px;
+}
+
+.profile-username {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.profile-pronouns {
+  font-size: 11px;
+  margin-top: 4px;
+  color: #93c5fd;
+}
+
+.profile-section {
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.08);
+  filter: brightness(1.2);
+}
+
+/* FIRST LAUNCH OVERLAY */
+.first-launch {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.95);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 5000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.first-launch.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.first-launch-card {
+  width: 360px;
+  background: #020617;
+  border: 2px solid #1e3a8a;
+  padding: 20px;
+  border-radius: 8px;
+  animation: profileIn 0.25s ease;
+}
+
+.first-launch-card h2 {
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+/* INTRO SCREEN */
+.intro-screen {
+  position: fixed;
+  inset: 0;
+  background: black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  z-index: 9999;
+  opacity: 1;
+  transition: opacity 0.8s ease;
+}
+
+.intro-screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.intro-title {
+  font-size: 18px;
+  margin-bottom: 30px;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: introFade 1.2s ease forwards;
+}
+
+.intro-button {
+  font-family: 'Minecraftia', monospace;
+  font-size: 12px;
+  padding: 10px 20px;
+  border: 2px solid #1e3a8a;
+  background: #020617;
+  color: #c7d2fe;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: introFade 1.2s ease forwards;
+  animation-delay: 0.6s;
+}
+
+.intro-button:hover {
+  background: #2563eb;
+  transform: translateY(0) scale(1.05);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+@keyframes introFade {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Subtitle */
+.intro-subtitle {
+  font-size: 10px;
+  color: #93c5fd;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: introFade 1.5s ease forwards;
+  animation-delay: 0.3s;
+  letter-spacing: 1px;
+}
+
+/* Glitch spark effect */
+.intro-glitch {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  background: repeating-radial-gradient(circle, rgba(255,255,255,0.05), rgba(255,255,255,0.05) 1px, transparent 1px, transparent 3px);
+  animation: glitchAnim 0.6s infinite;
+  mix-blend-mode: overlay;
+}
+
+@keyframes glitchAnim {
+  0% { transform: translate(0,0); opacity:0.1; }
+  25% { transform: translate(2px,-1px); opacity:0.15; }
+  50% { transform: translate(-2px,1px); opacity:0.12; }
+  75% { transform: translate(1px,-2px); opacity:0.18; }
+  100% { transform: translate(0,0); opacity:0.1; }
+}
+
+/* Optional: subtle title shimmer */
+.intro-title {
+  position: relative;
+}
+
+@keyframes shine {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+#emojiBtn{
+background:#020617;
+border:none;
+font-size:20px;
+cursor:pointer;
+padding:6px;
+}
+
+#emojiBtn:hover{
+transform:scale(1.15);
+}
+
+</style>
+</head>
+<body>
+
+<!-- INTRO SCREEN -->
+<div id="introScreen" class="intro-screen">
+  <div class="intro-title">welcome to wolfchat.</div>
+  <button class="intro-button" id="enterBtn">enter</button>
+  <div class="intro-glitch"></div>
+</div>
+
+<button class="settings-btn" onclick="toggleSettings()">⚙</button>
+
+<div class="settings-panel" id="settingsPanel">
+<div class="settings-tabs">
+<button class="tab active" onclick="openTab('account')">ACCOUNT</button>
+<button class="tab" onclick="openTab('music')">MUSIC</button>
+<button class="tab" onclick="openTab('custom')">CUSTOM</button>
+<button class="tab" onclick="openTab('updates')">UPDATES</button>
+</div>
+
+<!-- ACCOUNT TAB -->
+<div class="tab-content active" id="account">
+
+<h3 style="margin-bottom:10px;">Account</h3>
+
+<label>Email</label>
+<input id="authEmail" type="email" placeholder="email">
+
+<label>Password</label>
+<input id="authPassword" type="password" placeholder="password">
+
+<button class="tab-btn" id="loginAccountBtn">LOGIN</button>
+<button class="tab-btn" id="signupAccountBtn">SIGN UP</button>
+
+<button class="tab-btn" id="logoutAccountBtn">LOG OUT</button>
+
+<div id="authStatus" style="margin-top:10px;font-size:11px;opacity:0.7;">
+Not logged in
+</div>
+
+</div>
+
+<!-- MUSIC TAB -->
+<div class="tab-content" id="music">
+
+<h3 style="margin-bottom:10px;">Last.fm Rich Presence</h3>
+
+<label>Last.fm Username</label>
+<input id="lastFmUsername" placeholder="Enter Last.fm username">
+<button class="tab-btn" id="setLastFmBtn">CONNECT</button>
+
+<div id="lastFmStatus" style="margin-top:12px; font-size:11px; opacity:0.7;">
+Not connected.
+</div>
+
+<div id="lastFmNowPlaying" style="margin-top:12px;"></div>
+
+</div>
+
+<!-- CUSTOM TAB -->
+<div class="tab-content" id="custom">
+
+<label>USERNAME</label>
+<input id="usernameInput" placeholder="Enter username">
+<button class="tab-btn" id="setUsernameBtn">SET USERNAME</button>
+
+<label>PROFILE IMAGE</label>
+<input type="file" accept="image/*" id="pfpUpload">
+<button class="tab-btn" id="setPfpBtn">SET PROFILE IMAGE</button>
+
+<label>DISPLAY NAME</label>
+<input id="displayNameInput" placeholder="Enter display name">
+<button class="tab-btn" id="setDisplayNameBtn">SET DISPLAY NAME</button>
+
+<label>PRONOUNS</label>
+<input id="pronounsInput" placeholder="e.g. he/him">
+<button class="tab-btn" id="setPronounsBtn">SET PRONOUNS</button>
+
+<label>BIO</label>
+<input id="bioInput" placeholder="Write something cool...">
+<button class="tab-btn" id="setBioBtn">SET BIO</button>
+
+<label>STATUS</label>
+<input id="statusInput" placeholder="What's on your mind?">
+<button class="tab-btn" id="setStatusBtn">SET STATUS</button>
+
+<label>BANNER IMAGE</label>
+<input type="file" accept="image/*" id="bannerUpload">
+<button class="tab-btn" id="setBannerBtn">SET BANNER</button>
+
+<label>PROFILE BORDER COLOR</label>
+<input type="color" id="colorPicker" value="#1e3a8a">
+<button class="tab-btn" id="setColorBtn">SET COLOR</button>
+
+<label>PROFILE BACKGROUND COLOR</label>
+<input type="color" id="cardBgColorPicker">
+<button class="save-btn" id="setCardBgBtn">SET COLOR</button>
+
+<label>PROFILE LAYOUT BACKUP</label>
+<button class="tab-btn" id="exportLayoutBtn">EXPORT LAYOUT</button>
+<input type="file" accept="application/json" id="importLayoutUpload">
+<button class="tab-btn" id="importLayoutBtn">IMPORT LAYOUT</button>
+
+<hr style="margin:12px 0; border-color:#1e3a8a;">
+
+<label>JOIN DATE</label>
+<input type="date" id="joinDateInput">
+<button class="tab-btn" id="setJoinDateBtn">SET JOIN DATE</button>
+
+<label>BADGES (comma separated)</label>
+<input id="badgesInput" placeholder="owner, beta, cool">
+<button class="tab-btn" id="setBadgesBtn">SET BADGES</button>
+
+<label>FAVORITE SONG</label>
+<input id="favoriteSongInput" placeholder="Song - Artist">
+<button class="tab-btn" id="setFavoriteSongBtn">SET FAVORITE SONG</button>
+
+<label>WEBSITE</label>
+<input id="websiteInput" placeholder="https://example.com">
+
+<label>GITHUB</label>
+<input id="githubInput" placeholder="https://github.com/username">
+
+<button class="tab-btn" id="setSocialsBtn">SAVE SOCIAL LINKS</button>
+
+</div>
+
+<!-- UPDATES TAB -->
+<div class="tab-content" id="updates">
+  <h3 style="margin-bottom:10px;">UPDATES</h3>
+  <div class="song">
+    updates (u) // things i wanna add (a)
+    <br><br>
+    fixed storage (u)<br>
+    fixed lagging (u)<br>
+    fixed profiles being "undefined" (u)<br>
+    
+    <br><br>
+    typing animations (a)<br>
+    more profile configs (a)<br>
+    mentions (a)<br>
+    edit messages a)<br>
+    pin messages (probably locally since no dms yet - a)<br>
+    chat themes (a)<br>
+    message reactions (a)<br>
+    reply system (a)<br>
+    dms (a)<br>
+    other chat rooms (a)<br>
+    <br><br>
+    no idea what else im gonna add yet, but u get the point<br>
+    - wolf/owner.
+    </div>
+  </div>
+</div>
+
+<div id="firstLaunchOverlay" class="first-launch">
+  <div class="first-launch-card">
+    <h2>welcome to wolfchat.</h2>
+
+    <label>choose a username</label>
+    <input id="firstUsername" placeholder="enter username">
+
+    <label>choose a profile picture</label>
+    <input type="file" accept="image/*" id="firstPfp">
+
+    <button id="firstCreateBtn">create profile</button>
+
+    <hr style="margin:14px 0; border-color:#1e3a8a;">
+
+    <label>or load existing profile</label>
+    <input type="file" accept="application/json" id="firstImport">
+    <button id="firstImportBtn">load profile file</button>
+  </div>
+</div>
+
+<div class="chat-container">
+<div id="loginScreen" style="
+position:fixed;
+inset:0;
+background:black;
+display:flex;
+justify-content:center;
+align-items:center;
+z-index:9999;
+">
+
+<div style="
+background:#020617;
+border:2px solid #1e3a8a;
+padding:20px;
+width:320px;
+">
+
+<h3 style="margin-bottom:10px;">login</h3>
+
+<label>Email</label>
+<input id="loginEmail" type="email">
+
+<label>Password</label>
+<input id="loginPassword" type="password">
+
+<button id="loginBtn" style="margin-top:10px;">login</button>
+<button id="signupBtn" style="margin-top:6px;">create account</button>
+
+<div id="loginFeedback"></div>
+
+</div>
+</div>
+<div class="chat-loading" id="chatLoading">
+<div class="loader"></div>
+<span>Loading messages...</span>
+</div>
+<div class="chat-box" id="chatBox"></div>
+<div class="input-box">
+<div class="connection-indicator" id="connectionIndicator" title="Checking connection..."></div>
+<button id="emojiBtn">😀</button>
+<input id="messageInput" placeholder="TYPE MESSAGE...">
+<button onclick="sendMessage()">SEND</button>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.5/dist/jsmediatags.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/twemoji.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js"></script>
+
+
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+import {
+  getDatabase,
+  ref,
+  push,
+  set,
+  onChildAdded,
+  remove,
+  child,
+  query,
+  limitToLast,
+  onValue,
+  onChildRemoved
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+/* Firebase setup */
+const firebaseConfig = {
+    apiKey: "AIzaSyBg5DGLubsHuH3ub3AtzpRenSMH6x1hZPs",
+    authDomain: "wolfchatlol.firebaseapp.com",
+    databaseURL: "https://wolfchatlol-default-rtdb.firebaseio.com",
+    projectId: "wolfchatlol",
+    storageBucket: "wolfchatlol.firebasestorage.app",
+    messagingSenderId: "654485297853",
+    appId: "1:654485297853:web:6f08ff3c2e102fbed275d4",
+    measurementId: "G-7S4G16W26R"
+  };
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
+const auth = getAuth(app);
+const JSONBIN_BASE_URL = "https://api.jsonbin.io/v3/b";
+
+function getJsonBinAccessKey() {
+  return localStorage.getItem("jsonbinAccessKey") || "";
+}
+
+import { get, ref as dbRef } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+get(dbRef(db, "messages")).then(snap => {
+  console.log("TEST READ:", snap.exists(), snap.val());
+}).catch(err => {
+  console.error("READ FAILED:", err);
+});
+
+const renderedMessages = new Set();
+
+const messagesRootRef = ref(db, "messages");
+const messagesQuery = query(messagesRootRef, limitToLast(50));
+
+onChildAdded(messagesQuery, async (snap) => {
+  const msg = snap.val();
+  const key = snap.key;
+
+  if (renderedMessages.has(key)) return;
+  renderedMessages.add(key);
+
+  let username = msg.username;
+  let pfp = msg.pfp;
+  let extraData = { uid: msg.uid, name: username || "PLAYER" };
+
+  try {
+    let profile = null;
+
+    if (msg.profileUrl) {
+      profile = await fetchProfileByUrl(msg.profileUrl);
+    }
+
+    if (!profile && msg.uid) {
+      profile = await getProfileFromAccount(msg.uid);
+    }
+
+    if (profile) {
+      username = profile.username || username || "PLAYER";
+      pfp = profile.pfp || pfp || "https://via.placeholder.com/36";
+      extraData = { ...profile, uid: msg.uid, name: username };
+    } else {
+      username = username || "PLAYER";
+      pfp = pfp || "https://via.placeholder.com/36";
+      extraData = { uid: msg.uid, name: username };
+    }
+  } catch (e) {
+    console.error("Profile fetch failed:", e);
+    username = username || "PLAYER";
+    pfp = pfp || "https://via.placeholder.com/36";
+    extraData = { uid: msg.uid, name: username };
+  }
+
+  addMessage(
+    username,
+    msg.text,
+    pfp,
+    new Date(msg.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    key,
+    extraData
+  );
+});
+
+/* Connection Indicator */
+const connectionIndicator = document.getElementById("connectionIndicator");
+function updateConnectionStatus() {
+const connectedRef = ref(db, ".info/connected");
+onValue(connectedRef, snap => {
+if(snap.val()===true){
+let color="blue", tooltip="🔵 - great connection.";
+if(navigator.connection && navigator.connection.effectiveType){
+switch(navigator.connection.effectiveType){
+case "4g": color="blue"; tooltip="🔵 - great connection."; break;
+case "3g": color="green"; tooltip="🟢 - good connection."; break;
+case "2g": color="yellow"; tooltip="🟡 - okay connection."; break;
+case "slow-2g": color="orange"; tooltip="🟠 - bad connection."; break;
+default: color="red"; tooltip="🔴 - terrible connection.";
+}
+}
+connectionIndicator.style.background=color;
+connectionIndicator.title=tooltip;
+}else{
+connectionIndicator.style.background="red";
+connectionIndicator.title="🔴 - terrible connection.";
+}
+});
+}
+updateConnectionStatus();
+setInterval(updateConnectionStatus,20000);
+
+/* Chat */
+const chatBox=document.getElementById("chatBox");
+const messageInput=document.getElementById("messageInput");
+const chatLoading = document.getElementById("chatLoading");
+let username = localStorage.getItem("username");
+let userPFP = localStorage.getItem("pfp");
+let isOwner=false;
+let firstMessageLoaded=false;
+
+const profileCache = {};
+let lastNowPlaying = null; // tracks last track sent to chat
+
+function shouldAutoScroll() {
+  const threshold = 80;
+  return chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < threshold;
+}
+
+async function fetchProfileByUrl(profileUrl) {
+  if (!profileUrl) return null;
+  if (profileCache[profileUrl]) return profileCache[profileUrl];
+
+  const jsonBinKey = getJsonBinAccessKey();
+  if (!jsonBinKey) {
+    return null;
+  }
+
+  try {
+    const res = await fetch(profileUrl, {
+      headers: { "X-Access-Key": jsonBinKey }
+    });
+    if (!res.ok) return null;
+    const payload = await res.json();
+    const profile = payload.record || null;
+    if (profile) profileCache[profileUrl] = profile;
+    return profile;
+  } catch (error) {
+    console.error("JSONBin read failed:", error);
+    return null;
+  }
+}
+
+async function upsertProfileToJsonBin(profileData) {
+  const jsonBinKey = getJsonBinAccessKey();
+  if (!jsonBinKey) {
+    showStatusPopup("Set localStorage.jsonbinAccessKey first.", 3500);
+    throw new Error("Missing JSONBin access key.");
+  }
+
+  const existingBinId = localStorage.getItem("profileBinId");
+  const url = existingBinId ? `${JSONBIN_BASE_URL}/${existingBinId}` : JSONBIN_BASE_URL;
+  const method = existingBinId ? "PUT" : "POST";
+
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Key": jsonBinKey
+    },
+    body: JSON.stringify(profileData)
+  });
+
+  if (!res.ok) {
+    throw new Error(`JSONBin write failed with status ${res.status}`);
+  }
+
+  const payload = await res.json();
+  const binId = payload.metadata?.id || existingBinId;
+  if (!binId) throw new Error("JSONBin response missing bin id.");
+
+  const profileUrl = `${JSONBIN_BASE_URL}/${binId}/latest`;
+  localStorage.setItem("profileBinId", binId);
+  localStorage.setItem("profileUrl", profileUrl);
+  profileCache[profileUrl] = profileData;
+
+  return { binId, profileUrl };
+}
+
+// --- PAGE TITLE NOTIFICATIONS ---
+const originalTitle = document.title;
+let unreadCount = 0;
+let windowFocused = true;
+
+window.addEventListener("focus", () => {
+  windowFocused = true;
+  unreadCount = 0;
+  document.title = originalTitle;
+});
+
+window.addEventListener("blur", () => {
+  windowFocused = false;
+});
+  
+messageInput.addEventListener("keydown", e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(); } });
+
+function timeNow(){ return new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}); }
+
+function addMessage(name,text,img,time,key,data){
+const stickToBottom = shouldAutoScroll();
+const m=document.createElement("div");
+const side = (auth.currentUser && data.uid === auth.currentUser.uid)
+  ? "user"
+  : "other";
+  m.className=`message ${side}`;
+m.dataset.key=key;
+let ownerStar = (name==="wolf")?'<span class="owner-star">★</span>':'';
+let bubbleHTML = `
+${side==="other"?`<img src="${img}" class="clickable-avatar">`:``}
+<div class="bubble">
+  <div class="name">${name}${ownerStar}</div>
+  ${text}
+  <div class="time">${time}</div>
+</div>
+${side==="user"?`<img src="${img}" class="clickable-avatar">`:``}
+`;
+
+m.innerHTML = bubbleHTML;
+
+m.querySelectorAll(".clickable-avatar").forEach(avatar=>{
+avatar.onclick = () => openProfile({
+  name: name,
+  ...data
+});
+
+});
+
+if(side==="user"||isOwner){
+const delBtn=document.createElement("button");
+delBtn.textContent="🗑";
+delBtn.onclick=()=>{ remove(child(ref(db,"messages"),key)); m.remove(); };
+m.querySelector(".bubble").appendChild(delBtn);
+}
+chatBox.appendChild(m);
+
+const bubble = m.querySelector(".bubble");
+bubble.innerHTML = twemoji.parse(bubble.innerHTML, {
+  folder: "svg",
+  ext: ".svg"
+});
+
+if (stickToBottom) {
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+if(!firstMessageLoaded){
+firstMessageLoaded=true;
+chatLoading.style.opacity=0;
+chatBox.classList.add("loaded");
+setTimeout(()=>{ chatLoading.style.display="none"; },500);
+}
+}
+
+setTimeout(() => {
+  if (!firstMessageLoaded) {
+    chatLoading.style.opacity = 0;
+    chatBox.classList.add("loaded");
+    setTimeout(() => {
+      chatLoading.style.display = "none";
+    }, 500);
+  }
+}, 1500);
+
+async function getProfileFromAccount(uid) {
+  try {
+    const snap = await get(ref(db, "profiles/" + uid));
+    if (snap.exists()) {
+      const profileRefData = snap.val();
+      if (profileRefData?.profileUrl) {
+        const fromJsonBin = await fetchProfileByUrl(profileRefData.profileUrl);
+        if (fromJsonBin) return fromJsonBin;
+      }
+      return profileRefData;
+    } else {
+      return {};
+    }
+  } catch (e) {
+    console.error("Profile fetch failed:", e);
+    return {};
+  }
+}
+
+window.sendMessage = async () => {
+  if (!auth.currentUser) {
+    showStatusPopup("You must be logged in to send messages.", 2000);
+    return;
+  }
+
+  const text = messageInput.value.trim();
+  if (!text) return;
+
+  messageInput.value = "";
+
+  const uid = auth.currentUser.uid;
+
+  const profile = await getProfileFromAccount(uid);
+
+  const finalUsername =
+    profile.username ||
+    localStorage.getItem("username") ||
+    "PLAYER";
+
+  const finalPfp =
+    profile.pfp ||
+    localStorage.getItem("pfp") ||
+    "https://via.placeholder.com/36";
+
+  const profileUrl =
+    profile.profileUrl ||
+    localStorage.getItem("profileUrl") ||
+    null;
+
+  push(messagesRootRef, {
+    uid,
+    text,
+    ts: Date.now(),
+    profileUrl,
+    username: finalUsername,
+    pfp: finalPfp
+  });
+};
+
+onChildRemoved(ref(db,"messages"), snap => {
+  const key = snap.key;
+  const msgElem = chatBox.querySelector(`.message[data-key="${key}"]`);
+  if (msgElem) {
+    msgElem.remove(); // Remove it from the DOM on all clients
+  }
+});
+
+/* SETTINGS */
+window.toggleSettings=()=>document.getElementById("settingsPanel").classList.toggle("open");
+window.openTab=id=>{
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+document.querySelector(`[onclick="openTab('${id}')"]`).classList.add("active");
+document.getElementById(id).classList.add("active");
+};
+
+/* Profile */
+window.saveProfile = () => {
+  const usernameInput = document.getElementById("usernameInput");
+  const displayNameInput = document.getElementById("displayNameInput");
+  const pronounsInput = document.getElementById("pronounsInput");
+  const bioInput = document.getElementById("bioInput");
+
+  if (usernameInput.value.trim()) {
+    username = usernameInput.value.trim();
+    localStorage.setItem("username", username);
+  }
+
+  localStorage.setItem("displayName", displayNameInput.value.trim());
+  localStorage.setItem("pronouns", pronounsInput.value.trim());
+  localStorage.setItem("bio", bioInput.value.trim());
+
+  const pfpUpload = document.getElementById("pfpUpload");
+  if (pfpUpload.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      userPFP = e.target.result;
+      localStorage.setItem("pfp", userPFP);
+    };
+    reader.readAsDataURL(pfpUpload.files[0]);
+  }
+  saveProfileToAccount();
+  alert("Profile saved!");
+};
+
+/* CUSTOM TAB BUTTONS */
+
+document.getElementById("setUsernameBtn").onclick = () => {
+  const val = document.getElementById("usernameInput").value.trim();
+  if (!val) return;
+  username = val;
+  localStorage.setItem("username", val);
+  saveProfileToAccount();
+  alert("Username updated.");
+};
+
+document.getElementById("setDisplayNameBtn").onclick = () => {
+  const val = document.getElementById("displayNameInput").value.trim();
+  localStorage.setItem("displayName", val);
+  saveProfileToAccount();
+  alert("Display name updated.");
+};
+
+document.getElementById("setPronounsBtn").onclick = () => {
+  const val = document.getElementById("pronounsInput").value.trim();
+  localStorage.setItem("pronouns", val);
+  saveProfileToAccount();
+  alert("Pronouns updated.");
+};
+
+document.getElementById("setBioBtn").onclick = () => {
+  const val = document.getElementById("bioInput").value.trim();
+  localStorage.setItem("bio", val);
+  saveProfileToAccount();
+  alert("Bio updated.");
+};
+
+document.getElementById("setPfpBtn").onclick = () => {
+  const file = document.getElementById("pfpUpload").files[0];
+  if (!file) return alert("Select an image first.");
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    userPFP = e.target.result;
+    localStorage.setItem("pfp", userPFP);
+    saveProfileToAccount();
+    alert("Profile picture updated.");
+  };
+  reader.readAsDataURL(file);
+};
+
+document.getElementById("setBannerBtn").onclick = () => {
+  const file = document.getElementById("bannerUpload").files[0];
+  if (!file) return alert("Select a banner first.");
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    localStorage.setItem("banner", e.target.result);
+    saveProfileToAccount();
+    alert("Banner updated.");
+  };
+  reader.readAsDataURL(file);
+};
+
+document.getElementById("setColorBtn").onclick = () => {
+  const val = document.getElementById("colorPicker").value;
+  localStorage.setItem("profileColor", val);
+  saveProfileToAccount();
+  alert("Profile color updated.");
+};
+
+document.getElementById("setCardBgBtn").onclick = () => {
+  const color = document.getElementById("cardBgColorPicker").value;
+
+  // Save to localStorage
+  localStorage.setItem("profileCardBg", color);
+
+  // Update profile card background immediately
+  const profileCard = document.querySelector(".profile-card");
+  if (profileCard) {
+    profileCard.style.background = color;
+  }
+
+  saveProfileToAccount();
+  showStatusPopup("Profile background updated!");
+};
+
+document.getElementById("setColorBtn").onclick = () => {
+  const color = document.getElementById("colorPicker").value;
+
+  // Save to localStorage
+  localStorage.setItem("profileColor", color);
+
+  // Update profile card border immediately
+  const profileCard = document.querySelector(".profile-card");
+  if (profileCard) {
+    profileCard.style.borderColor = color;
+  }
+
+  saveProfileToAccount();
+  showStatusPopup("Profile color updated!");
+};
+
+function getProfileLayout() {
+  return {
+    username: localStorage.getItem("username") || "",
+    displayName: localStorage.getItem("displayName") || "",
+    pronouns: localStorage.getItem("pronouns") || "",
+    bio: localStorage.getItem("bio") || "",
+    status: localStorage.getItem("status") || "",
+    banner: localStorage.getItem("banner") || "",
+    profileColor: localStorage.getItem("profileColor") || "#1e3a8a",
+    profileCardBg: localStorage.getItem("profileCardBg") || "#111111",
+    pfp: localStorage.getItem("pfp") || "",
+    lastFmUser: localStorage.getItem("lastFmUser") || "",
+    badges: JSON.parse(localStorage.getItem("badges") || "[]"),
+    joinDate: localStorage.getItem("joinDate") || "",
+    socials: JSON.parse(localStorage.getItem("socials") || "{}"),
+    favoriteSong: localStorage.getItem("favoriteSong") || "",
+    messageCount: parseInt(localStorage.getItem("messageCount") || "0")
+  };
+}
+
+function hydrateProfileFields(layout) {
+  document.getElementById("usernameInput").value = layout.username || "";
+  document.getElementById("displayNameInput").value = layout.displayName || "";
+  document.getElementById("pronounsInput").value = layout.pronouns || "";
+  document.getElementById("bioInput").value = layout.bio || "";
+  document.getElementById("statusInput").value = layout.status || "";
+  document.getElementById("colorPicker").value = layout.profileColor || "#1e3a8a";
+  document.getElementById("lastFmUsername").value = layout.lastFmUser || "";
+}
+
+document.getElementById("exportLayoutBtn").onclick = () => {
+  const layout = getProfileLayout();
+  const payload = JSON.stringify(layout, null, 2);
+  const blob = new Blob([payload], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const downloadLink = document.createElement("a");
+  downloadLink.href = url;
+  downloadLink.download = `${layout.username || "wolfchat"}-layout.json`;
+  document.body.appendChild(downloadLink);
+  downloadLink.click();
+  downloadLink.remove();
+  URL.revokeObjectURL(url);
+};
+
+document.getElementById("importLayoutBtn").onclick = () => {
+  const file = document.getElementById("importLayoutUpload").files[0];
+  if (!file) return alert("Select a layout JSON file first.");
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const layout = JSON.parse(e.target.result);
+
+      const fields = [
+        "username",
+       "displayName",
+       "pronouns",
+        "bio",
+       "status",
+        "banner",
+        "profileColor",
+        "profileCardBg",
+        "pfp",
+        "lastFmUser"
+      ];
+      fields.forEach(field => {
+        if (typeof layout[field] === "string") {
+          localStorage.setItem(field, layout[field]);
+        }
+      });
+
+      username = localStorage.getItem("username") || "PLAYER";
+      userPFP = localStorage.getItem("pfp") || "https://via.placeholder.com/36";
+
+      hydrateProfileFields(getProfileLayout());
+      updateLastFmPresence();
+
+      const restoredLastFmUser = localStorage.getItem("lastFmUser");
+      lastFmStatus.textContent = restoredLastFmUser
+        ? `Connected as ${restoredLastFmUser}`
+        : "Not connected.";
+
+      alert("Layout imported successfully.");
+    } catch {
+      alert("Invalid layout file.");
+    }
+  };
+
+  reader.readAsText(file);
+};
+
+document.getElementById("setStatusBtn").onclick = () => {
+  const val = document.getElementById("statusInput").value.trim();
+  localStorage.setItem("status", val);
+  saveProfileToAccount();
+  alert("Status updated.");
+};
+
+document.getElementById("setJoinDateBtn").onclick = () => {
+  const val = document.getElementById("joinDateInput").value;
+  if (!val) return;
+  localStorage.setItem("joinDate", val);
+  saveProfileToAccount();
+  alert("Join date updated.");
+};
+
+document.getElementById("setBadgesBtn").onclick = () => {
+  const val = document.getElementById("badgesInput").value;
+  const arr = val.split(",").map(b => b.trim()).filter(Boolean);
+  localStorage.setItem("badges", JSON.stringify(arr));
+  saveProfileToAccount();
+  alert("Badges updated.");
+};
+
+document.getElementById("setFavoriteSongBtn").onclick = () => {
+  const val = document.getElementById("favoriteSongInput").value.trim();
+  localStorage.setItem("favoriteSong", val);
+  saveProfileToAccount();
+  alert("Favorite song updated.");
+};
+
+document.getElementById("setSocialsBtn").onclick = () => {
+  const socials = {
+    website: document.getElementById("websiteInput").value.trim(),
+    github: document.getElementById("githubInput").value.trim()
+  };
+  localStorage.setItem("socials", JSON.stringify(socials));
+  saveProfileToAccount();
+  alert("Social links saved.");
+};
+
+async function openProfile(data){
+  if(!data) return;
+
+document.getElementById("profileAvatar").src = data.pfp || "https://via.placeholder.com/80";
+const bannerDiv = document.querySelector(".profile-banner");
+
+if (data.banner) {
+  bannerDiv.style.background = `url(${data.banner}) center/cover`;
+} else {
+  bannerDiv.style.background = "linear-gradient(135deg,#1e3a8a,#2563eb)";
+}
+  document.getElementById("profileDisplayName").textContent = data.displayName || data.name;
+  document.getElementById("profileUsername").textContent = "@" + data.name;
+  document.getElementById("profilePronouns").textContent = data.pronouns || "";
+  document.getElementById("profileStatus").textContent = data.status || "";
+  document.getElementById("profileBio").textContent = data.bio || "No bio set.";
+  // ===== BADGES =====
+const badgeContainer = document.getElementById("profileBadges");
+badgeContainer.innerHTML = "";
+if (data.badges && data.badges.length) {
+  data.badges.forEach(b => {
+    const span = document.createElement("span");
+    span.textContent = "🏅 " + b;
+    span.style.fontSize = "10px";
+    span.style.marginRight = "6px";
+    badgeContainer.appendChild(span);
+  });
+}
+
+// ===== STATS =====
+document.getElementById("profileStats").innerHTML = `
+  <div>Joined: ${data.joinDate ? new Date(data.joinDate).toDateString() : "Unknown"}</div>
+  <div>Messages: ${data.messageCount || 0}</div>
+`;
+
+// ===== SOCIALS =====
+const socialDiv = document.getElementById("profileSocials");
+socialDiv.innerHTML = "";
+if (data.socials) {
+  if (data.socials.website) {
+    socialDiv.innerHTML += `<div><a href="${data.socials.website}" target="_blank">🌐 Website</a></div>`;
+  }
+  if (data.socials.github) {
+    socialDiv.innerHTML += `<div><a href="${data.socials.github}" target="_blank">💻 GitHub</a></div>`;
+  }
+}
+
+// ===== FAVORITE SONG =====
+document.getElementById("profileFavoriteSong").textContent =
+  data.favoriteSong || "No favorite song set.";
+  document.querySelector(".profile-card").style.borderColor =
+  data.profileColor || "#1e3a8a";
+  document.querySelector(".profile-card").style.background =
+  data.profileCardBg || "#111111";
+
+  const musicSection = document.getElementById("profileMusic");
+  const profileCard = document.querySelector(".profile-card");
+profileCard.classList.remove("listening");
+  if(!data.lastFmUser){
+    musicSection.innerHTML = `<div style="font-size:11px; opacity:0.5;">not connected to Last.fm</div>`;
+  } else {
+    musicSection.innerHTML = `<div style="font-size:11px; opacity:0.5;">loading...</div>`;
+
+    const track = await getNowPlaying(data.lastFmUser);
+
+    if(track && track.nowPlaying){
+      profileCard.classList.add("listening");
+      musicSection.innerHTML = `
+        <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
+          ${track.cover ? `<img src="${track.cover}" style="width:50px; height:50px; border-radius:6px;">` : ""}
+          <div>
+            <div style="font-size:12px;">🎵 ${track.title}</div>
+            <div style="font-size:10px; opacity:0.6;">${track.artist}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      musicSection.innerHTML = `<div style="font-size:11px; opacity:0.5;">not listening right now</div>`;
+    }
+  }
+
+  document.getElementById("profileModal").classList.add("active");
+}
+
+/* ===== LAST.FM RICH PRESENCE ===== */
+
+const lastFmApiKey = "c08ea0f29eef2eec1c27b99a86afe75d";
+const lastFmStatus = document.getElementById("lastFmStatus");
+const lastFmNowPlaying = document.getElementById("lastFmNowPlaying");
+const profileMusic = document.getElementById("profileMusic");
+
+let activePopup = null;
+
+function showStatusPopup(message, duration=1500) {
+
+    if(activePopup) {
+        activePopup.remove();
+        activePopup = null;
+    }
+
+    let popup = document.createElement("div");
+    activePopup = popup;
+
+    popup.style.position = "fixed";
+    popup.style.top = "20px";
+    popup.style.left = "20px";
+    popup.style.background = "#020617";
+    popup.style.border = "2px solid #1e3a8a";
+    popup.style.padding = "10px 14px";
+    popup.style.borderRadius = "6px";
+    popup.style.fontFamily = "'Minecraftia', monospace";
+    popup.style.color = "#c7d2fe";
+    popup.style.zIndex = 3000;
+    popup.style.opacity = 0;
+    popup.style.transition = "opacity 0.3s ease, transform 0.3s ease";
+    popup.style.transform = "translateY(-20px)";
+    popup.textContent = message;
+
+    document.body.appendChild(popup);
+
+    setTimeout(() => {
+        popup.style.opacity = 1;
+        popup.style.transform = "translateY(0)";
+    }, 50);
+
+    setTimeout(() => {
+        popup.style.opacity = 0;
+        popup.style.transform = "translateY(-20px)";
+        setTimeout(()=>{
+            popup.remove();
+            if(activePopup === popup) activePopup = null;
+        }, 300);
+    }, duration);
+}
+
+// ===== LAST.FM RICH PRESENCE =====
+async function getNowPlaying(username) {
+    const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${username}&api_key=${lastFmApiKey}&format=json&limit=1`;
+    try {
+        const res = await fetch(url);
+        if(!res.ok) return null;
+
+        const data = await res.json();
+        if(data.error) return null;
+        if(!data.recenttracks?.track?.length) return null;
+
+        const track = data.recenttracks.track[0];
+
+        return {
+            title: track.name || "Unknown",
+            artist: track.artist?.["#text"] || "Unknown",
+            album: track.album?.["#text"] || "",
+            cover: track.image?.length ? track.image[track.image.length-1]["#text"] : "",
+            nowPlaying: track["@attr"]?.nowplaying === "true"
+        };
+    } catch(e){
+        console.error("getNowPlaying error:", e);
+        return null;
+    }
+}
+
+document.getElementById("setLastFmBtn").onclick = async () => {
+    const input = document.getElementById("lastFmUsername").value.trim();
+    if(!input) return alert("Enter your Last.fm username or profile link.");
+
+    let extractedUsername = input;
+
+    try {
+        const url = new URL(input);
+        if (url.hostname.includes("last.fm")) {
+            const parts = url.pathname.split("/");
+            const userIndex = parts.indexOf("user");
+            if (userIndex !== -1 && parts[userIndex + 1]) {
+                extractedUsername = parts[userIndex + 1];
+            }
+        }
+    } catch {}
+
+    showStatusPopup("Connecting...");
+
+    try {
+        const res = await fetch(
+          `https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${extractedUsername}&api_key=${lastFmApiKey}&format=json`
+        );
+
+        const data = await res.json();
+
+        if(data.error){
+            showStatusPopup("Failed - account does not exist", 3000);
+            return;
+        }
+
+        // ✅ Account exists — save it
+        localStorage.setItem("lastFmUser", extractedUsername);
+        lastFmStatus.textContent = `Connected as ${extractedUsername}`
+        showStatusPopup("Connected!");
+        saveProfileToAccount();
+        updateLastFmPresence();
+
+    } catch(e) {
+        showStatusPopup("Network error - try again", 3000);
+        console.error(e);
+    }
+};
+
+// Update profile modal & MUSIC tab
+async function updateLastFmPresence() {
+  const username = localStorage.getItem("lastFmUser");
+  if(!username) return;
+
+  const track = await getNowPlaying(username);
+
+  const html = track && track.nowPlaying
+    ? `
+      <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
+        ${track.cover ? `<img src="${track.cover}" style="width:50px; height:50px; border-radius:6px;">` : ""}
+        <div>
+          <div style="font-size:12px;">🎵 ${track.title}</div>
+          <div style="font-size:10px; opacity:0.6;">${track.artist}</div>
+        </div>
+      </div>
+    `
+    : `<div style="font-size:11px; opacity:0.5;">not listening to anything</div>`;
+
+  lastFmNowPlaying.innerHTML = html;
+}
+
+// Refresh every 5 seconds
+setInterval(updateLastFmPresence, 5000);
+
+// On page load, restore if user had connected before
+const overlay = document.getElementById("firstLaunchOverlay");
+
+if (!localStorage.getItem("username")) {
+  overlay.classList.add("active");
+} else {
+  username = localStorage.getItem("username");
+  userPFP = localStorage.getItem("pfp") || "https://via.placeholder.com/36";
+}
+window.addEventListener("DOMContentLoaded", () => {
+  const username = localStorage.getItem("lastFmUser");
+  if(username) {
+    document.getElementById("lastFmUsername").value = username;
+    lastFmStatus.textContent = `Connected as ${username}`;
+    updateLastFmPresence();
+  }
+
+  hydrateProfileFields(getProfileLayout());
+});
+
+// Close profile modal when clicking outside
+const profileModal = document.getElementById("profileModal");
+
+if (profileModal) {
+  profileModal.addEventListener("click", (e) => {
+    if (e.target === profileModal) {
+      profileModal.classList.remove("active");
+    }
+  });
+}
+
+document.getElementById("firstCreateBtn").onclick = () => {
+  const name = document.getElementById("firstUsername").value.trim();
+  const file = document.getElementById("firstPfp").files[0];
+
+  if (!name) {
+    alert("Enter a username.");
+    return;
+  }
+
+  localStorage.setItem("username", name);
+  username = name;
+
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      userPFP = e.target.result;
+      localStorage.setItem("pfp", userPFP);
+      finishFirstLaunch();
+    };
+    reader.readAsDataURL(file);
+  } else {
+    userPFP = "https://via.placeholder.com/36";
+    localStorage.setItem("pfp", userPFP);
+    finishFirstLaunch();
+  }
+};
+
+function finishFirstLaunch() {
+  document.getElementById("firstLaunchOverlay").classList.remove("active");
+  showStatusPopup("profile created!");
+}
+
+document.getElementById("firstImportBtn").onclick = () => {
+  const file = document.getElementById("firstImport").files[0];
+  if (!file) return alert("Select a profile file.");
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const layout = JSON.parse(e.target.result);
+
+      Object.keys(layout).forEach(key => {
+        localStorage.setItem(key, layout[key]);
+      });
+
+      username = localStorage.getItem("username");
+      userPFP = localStorage.getItem("pfp");
+
+      finishFirstLaunch();
+    } catch {
+      alert("Invalid profile file.");
+    }
+  };
+
+  reader.readAsText(file);
+};
+
+/* INTRO SCREEN LOGIC */
+const introScreen = document.getElementById("introScreen");
+const enterBtn = document.getElementById("enterBtn");
+
+enterBtn.onclick = () => {
+  introScreen.classList.add("hidden");
+
+  setTimeout(() => {
+    introScreen.style.display = "none";
+  }, 800);
+};
+
+/* GOOGLE LOGIN */
+
+window.handleGoogleLogin = function(response){
+
+  const payload = JSON.parse(atob(response.credential.split(".")[1]));
+
+  const email = payload.email;
+  const name = payload.name;
+  const picture = payload.picture;
+
+  localStorage.setItem("googleUser", email);
+
+  if(!localStorage.getItem("username")){
+    username = name;
+    localStorage.setItem("username", name);
+  }
+
+  if(!localStorage.getItem("pfp")){
+    userPFP = picture;
+    localStorage.setItem("pfp", picture);
+  }
+
+  document.getElementById("googleLoginOverlay").style.display = "none";
+
+};
+
+const loginScreen = document.getElementById("loginScreen");
+const loginBtn = document.getElementById("loginBtn");
+const signupBtn = document.getElementById("signupBtn");
+const loginFeedback = document.getElementById("loginFeedback");
+
+loginBtn.onclick = async () => {
+
+const email = document.getElementById("loginEmail").value;
+const password = document.getElementById("loginPassword").value;
+
+try{
+await signInWithEmailAndPassword(auth,email,password);
+loginFeedback.textContent="logged in!";
+loginFeedback.style.color="lightgreen";
+}catch(err){
+loginFeedback.textContent=err.message;
+loginFeedback.style.color="red";
+}
+
+};
+
+signupBtn.onclick = async () => {
+
+const email = document.getElementById("loginEmail").value;
+const password = document.getElementById("loginPassword").value;
+
+try{
+await createUserWithEmailAndPassword(auth,email,password);
+loginFeedback.textContent="account created!";
+loginFeedback.style.color="lightgreen";
+}catch(err){
+loginFeedback.textContent=err.message;
+loginFeedback.style.color="red";
+}
+
+};
+
+onAuthStateChanged(auth,(user)=>{
+if(user){
+loginScreen.style.display="none";
+}else{
+loginScreen.style.display="flex";
+}
+});
+
+const authStatus=document.getElementById("authStatus");
+
+document.getElementById("loginAccountBtn").onclick=async()=>{
+
+const email=document.getElementById("authEmail").value;
+const pass=document.getElementById("authPassword").value;
+
+try{
+await signInWithEmailAndPassword(auth,email,pass);
+showStatusPopup("Logged in!");
+}catch(err){
+showStatusPopup(err.message,3000);
+}
+
+};
+
+document.getElementById("signupAccountBtn").onclick=async()=>{
+
+const email=document.getElementById("authEmail").value;
+const pass=document.getElementById("authPassword").value;
+
+try{
+await createUserWithEmailAndPassword(auth,email,pass);
+showStatusPopup("Account created!");
+
+migrateLocalProfile();
+
+}catch(err){
+showStatusPopup(err.message,3000);
+}
+
+};
+
+document.getElementById("logoutAccountBtn").onclick=()=>{
+signOut(auth);
+showStatusPopup("Logged out");
+};
+
+onAuthStateChanged(auth,(user)=>{
+
+if(user){
+authStatus.textContent="Logged in as "+user.email;
+}else{
+authStatus.textContent="Not logged in";
+}
+
+});
+
+function migrateLocalProfile(){
+  if(!auth.currentUser) return;
+
+  saveProfileToAccount();
+}
+
+async function saveProfileToAccount() {
+  if (!auth.currentUser) return;
+
+  try {
+    const uid = auth.currentUser.uid;
+    const profileData = getProfileLayout();
+    const pointer = await upsertProfileToJsonBin(profileData);
+
+    await set(ref(db, `profiles/${uid}`), {
+      uid,
+      profileUrl: pointer.profileUrl,
+      profileBinId: pointer.binId,
+      updatedAt: Date.now()
+    });
+
+    console.log("Profile saved to JSONBin + Firebase pointer.");
+  } catch (err) {
+    console.error("Failed to save profile:", err);
+    showStatusPopup("Profile save failed.", 2500);
+  }
+}
+
+
+onAuthStateChanged(auth,(user)=>{
+
+if(!user) return;
+
+const profileRef=ref(db,"profiles/"+user.uid);
+
+onValue(profileRef, async (snap)=>{
+  if(!snap.exists()) return;
+
+  const data = snap.val();
+  if (data.profileUrl) {
+    localStorage.setItem("profileUrl", data.profileUrl);
+  }
+  if (data.profileBinId) {
+    localStorage.setItem("profileBinId", data.profileBinId);
+  }
+
+  const profileData = data.profileUrl ? await fetchProfileByUrl(data.profileUrl) : null;
+  if (profileData) {
+    Object.keys(profileData).forEach(k => {
+      if (profileData[k] !== undefined && profileData[k] !== null) {
+        if (typeof profileData[k] === "object") {
+          localStorage.setItem(k, JSON.stringify(profileData[k]));
+        } else {
+          localStorage.setItem(k, profileData[k]);
+        }
+      }
+    });
+  }
+
+  hydrateProfileFields(getProfileLayout());
+});
+
+window.addEventListener("load",()=>{
+
+if(localStorage.getItem("username") && !auth.currentUser){
+
+setTimeout(()=>{
+alert("Hey! wolfchat is adding accounts.\n\nPlease sign up with an email + password.\n\nYour profile will be saved to your account and synced across devices.");
+},2000);
+
+}
+
+});
+
+});
+
+/* EMOJI PICKER */
+
+window.addEventListener("DOMContentLoaded", () => {
+
+  const emojiBtn = document.getElementById("emojiBtn");
+  const emojiPickerContainer = document.getElementById("emojiPicker");
+
+  const picker = new EmojiMart.Picker({
+    theme: "dark",
+    previewPosition: "none",
+    onEmojiSelect: (emoji) => {
+      messageInput.value += emoji.native;
+    }
+  });
+
+  emojiPickerContainer.appendChild(picker);
+
+  emojiBtn.onclick = () => {
+    emojiPickerContainer.style.display =
+      emojiPickerContainer.style.display === "block"
+        ? "none"
+        : "block";
+  };
+
+});
+
+</script>
+
+<div id="profileModal" class="profile-modal">
+  <div class="profile-card">
+    
+    <div class="profile-banner"></div>
+    <img id="profileAvatar" class="profile-avatar">
+
+    <div class="profile-content">
+
+      <!-- Basic Info -->
+      <div id="profileDisplayName" class="profile-display"></div>
+      <div id="profileUsername" class="profile-username"></div>
+      <div id="profilePronouns" class="profile-pronouns"></div>
+      <div id="profileStatus" style="font-size:11px; margin-top:6px; color:#60a5fa;"></div>
+
+      <!-- About -->
+      <div class="profile-section">
+        <h4>ABOUT ME</h4>
+        <p id="profileBio"></p>
+      </div>
+
+      <!-- Badges -->
+      <div class="profile-section">
+        <h4>BADGES</h4>
+        <div id="profileBadges"></div>
+      </div>
+
+      <!-- Stats -->
+      <div class="profile-section">
+        <h4>STATS</h4>
+        <div id="profileStats"></div>
+      </div>
+
+      <!-- Social Links -->
+      <div class="profile-section">
+        <h4>SOCIALS</h4>
+        <div id="profileSocials"></div>
+      </div>
+
+      <!-- Favorite Song -->
+      <div class="profile-section">
+        <h4>FAVORITE SONG</h4>
+        <div id="profileFavoriteSong"></div>
+      </div>
+
+      <!-- Currently Listening -->
+      <div class="profile-section">
+        <h4>LISTENING TO</h4>
+        <div id="profileMusic"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="emojiPicker" style="
+position: fixed;
+bottom: 80px;
+left: 20px;
+display:none;
+z-index:4000;
+"></div>
+
+</body>
+</html>
