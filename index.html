@@ -1403,12 +1403,32 @@ async function getProfileFromAccount(uid) {
   try {
     const snap = await get(ref(db, "profiles/" + uid));
     if (snap.exists()) {
-      const profileRefData = snap.val();
+      const profileRefData = snap.val() || {};
+      const localProfileFallback = {
+        username: profileRefData.username || "",
+        displayName: profileRefData.displayName || "",
+        pronouns: profileRefData.pronouns || "",
+        bio: profileRefData.bio || "",
+        status: profileRefData.status || "",
+        banner: profileRefData.banner || "",
+        profileColor: profileRefData.profileColor || "",
+        profileCardBg: profileRefData.profileCardBg || "",
+        pfp: profileRefData.pfp || "",
+        lastFmUser: profileRefData.lastFmUser || "",
+        badges: Array.isArray(profileRefData.badges) ? profileRefData.badges : [],
+        joinDate: profileRefData.joinDate || "",
+        socials: profileRefData.socials || {},
+        favoriteSong: profileRefData.favoriteSong || "",
+        messageCount: Number(profileRefData.messageCount || 0)
+      };
+
       if (profileRefData?.profileUrl) {
         const fromJsonBin = await fetchProfileByUrl(profileRefData.profileUrl);
-        if (fromJsonBin) return fromJsonBin;
+        if (fromJsonBin) {
+          return { ...localProfileFallback, ...fromJsonBin, profileUrl: profileRefData.profileUrl };
+        }
       }
-      return profileRefData;
+      return { ...localProfileFallback, profileUrl: profileRefData.profileUrl || null };
     } else {
       return {};
     }
@@ -2213,6 +2233,21 @@ async function saveProfileToAccount() {
       uid,
       profileUrl: pointer.profileUrl,
       profileBinId: pointer.binId,
+      username: profileData.username || "",
+      displayName: profileData.displayName || "",
+      pronouns: profileData.pronouns || "",
+      bio: profileData.bio || "",
+      status: profileData.status || "",
+      banner: profileData.banner || "",
+      profileColor: profileData.profileColor || "",
+      profileCardBg: profileData.profileCardBg || "",
+      pfp: profileData.pfp || "",
+      lastFmUser: profileData.lastFmUser || "",
+      badges: Array.isArray(profileData.badges) ? profileData.badges : [],
+      joinDate: profileData.joinDate || "",
+      socials: profileData.socials || {},
+      favoriteSong: profileData.favoriteSong || "",
+      messageCount: Number(profileData.messageCount || 0),
       updatedAt: Date.now()
     });
 
@@ -2241,7 +2276,27 @@ onValue(profileRef, async (snap)=>{
     localStorage.setItem("profileBinId", data.profileBinId);
   }
 
-  const profileData = data.profileUrl ? await fetchProfileByUrl(data.profileUrl) : null;
+  const profileFromDb = {
+    username: data.username || "",
+    displayName: data.displayName || "",
+    pronouns: data.pronouns || "",
+    bio: data.bio || "",
+    status: data.status || "",
+    banner: data.banner || "",
+    profileColor: data.profileColor || "",
+    profileCardBg: data.profileCardBg || "",
+    pfp: data.pfp || "",
+    lastFmUser: data.lastFmUser || "",
+    badges: Array.isArray(data.badges) ? data.badges : [],
+    joinDate: data.joinDate || "",
+    socials: data.socials || {},
+    favoriteSong: data.favoriteSong || "",
+    messageCount: Number(data.messageCount || 0)
+  };
+
+  const profileFromBin = data.profileUrl ? await fetchProfileByUrl(data.profileUrl) : null;
+  const profileData = profileFromBin ? { ...profileFromDb, ...profileFromBin } : profileFromDb;
+
   if (profileData) {
     Object.keys(profileData).forEach(k => {
       if (profileData[k] !== undefined && profileData[k] !== null) {
