@@ -187,7 +187,6 @@ button:hover {
 label { display: block; font-size: 11px; margin: 8px 0 4px; }
 input[type="file"], input[type="text"], input[type="password"] { width: 100%; padding: 6px; font-family: inherit; background: black; border: 2px solid #1e3a8a; color: #e0e7ff; }
 
-#loginFeedback { display: inline-block; margin-left: 6px; font-size: 11px; }
 
 /* SONGS LIST */
 .song { padding: 8px; border: 2px solid #1e3a8a; margin-top: 6px; font-size: 11px; }
@@ -608,38 +607,7 @@ Not connected.
 </div>
 
 <div class="chat-container">
-<div id="loginScreen" style="
-position:fixed;
-inset:0;
-background:black;
-display:flex;
-justify-content:center;
-align-items:center;
-z-index:9999;
-">
 
-<div style="
-background:#020617;
-border:2px solid #1e3a8a;
-padding:20px;
-width:320px;
-">
-
-<h3 style="margin-bottom:10px;">login</h3>
-
-<label>Email</label>
-<input id="loginEmail" type="email">
-
-<label>Password</label>
-<input id="loginPassword" type="password">
-
-<button id="loginBtn" style="margin-top:10px;">login</button>
-<button id="signupBtn" style="margin-top:6px;">create account</button>
-
-<div id="loginFeedback"></div>
-
-</div>
-</div>
 <div class="chat-loading" id="chatLoading">
 <div class="loader"></div>
 <span>Loading messages...</span>
@@ -669,7 +637,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   onAuthStateChanged,
-  signOut
+  signOut,
+  signInAnonymously
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -2111,59 +2080,27 @@ window.handleGoogleLogin = function(response){
 
 };
 
-const loginScreen = document.getElementById("loginScreen");
-const loginBtn = document.getElementById("loginBtn");
-const signupBtn = document.getElementById("signupBtn");
-const loginFeedback = document.getElementById("loginFeedback");
 
-loginBtn.onclick = async () => {
-
-const email = document.getElementById("loginEmail").value;
-const password = document.getElementById("loginPassword").value;
-
-try{
-await signInWithEmailAndPassword(auth,email,password);
-loginFeedback.textContent="logged in!";
-loginFeedback.style.color="lightgreen";
-}catch(err){
-loginFeedback.textContent=err.message;
-loginFeedback.style.color="red";
-}
-
-};
-
-signupBtn.onclick = async () => {
-
-const email = document.getElementById("loginEmail").value;
-const password = document.getElementById("loginPassword").value;
-
-try{
-await createUserWithEmailAndPassword(auth,email,password);
-loginFeedback.textContent="account created!";
-loginFeedback.style.color="lightgreen";
-}catch(err){
-loginFeedback.textContent=err.message;
-loginFeedback.style.color="red";
-}
-
-};
-
-onAuthStateChanged(auth,(user)=>{
-if(user){
+onAuthStateChanged(auth, async (user) => {
+if (user) {
 currentUserUid = user.uid;
-loginScreen.style.display="none";
 setupPresenceTracking(user);
-}else{
+} else {
 if (currentUserUid) {
   set(ref(db, `presence/${currentUserUid}`), {
     online: false,
     lastSeen: Date.now()
   });
 }
-loginScreen.style.display="flex";
 setTypingState(false);
 typingStatus.textContent = "";
 currentUserUid = null;
+
+try {
+  await signInAnonymously(auth);
+} catch (err) {
+  console.error("Anonymous sign-in failed:", err);
+}
 }
 });
 
