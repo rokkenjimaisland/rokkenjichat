@@ -434,6 +434,20 @@ transform:scale(1.15);
   <button class="intro-button" id="enterBtn">enter</button>
   <div class="intro-glitch"></div>
 </div>
+<script>
+(() => {
+  const introScreen = document.getElementById("introScreen");
+  const enterBtn = document.getElementById("enterBtn");
+  if (!introScreen || !enterBtn) return;
+
+  enterBtn.addEventListener("click", () => {
+    introScreen.classList.add("hidden");
+    setTimeout(() => {
+      introScreen.style.display = "none";
+    }, 800);
+  });
+})();
+</script>
 
 <button class="settings-btn" onclick="toggleSettings()">⚙</button>
 <button class="users-btn" onclick="toggleUsersPanel()">users</button>
@@ -2040,18 +2054,6 @@ document.getElementById("firstImportBtn").onclick = () => {
   };
 
   reader.readAsText(file);
-};
-
-/* INTRO SCREEN LOGIC */
-const introScreen = document.getElementById("introScreen");
-const enterBtn = document.getElementById("enterBtn");
-
-enterBtn.onclick = () => {
-  introScreen.classList.add("hidden");
-
-  setTimeout(() => {
-    introScreen.style.display = "none";
-  }, 800);
 };
 
 /* GOOGLE LOGIN */
