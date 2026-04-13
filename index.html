@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>wolfchat.</title>
-<link id="dynamicFavicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
 
 <!-- Minecraftia font -->
 <link href="https://fonts.cdnfonts.com/css/minecraftia" rel="stylesheet">
@@ -99,18 +98,6 @@ margin-bottom: 10px;
 .name .owner-star { color: orange; font-size: 12px; }
 .time { font-size: 9px; opacity: 0.6; margin-top: 6px; text-align: right; }
 
-.typing-indicator .bubble {
-  min-width: 90px;
-  padding: 10px 16px;
-}
-
-.typing-dots {
-  font-size: 16px;
-  letter-spacing: 1px;
-  min-width: 20px;
-  display: inline-block;
-}
-
 /* DELETE BUTTON - PIXEL TRASHCAN */
 .bubble button {
 background: black;
@@ -144,17 +131,6 @@ transition: background 0.3s ease;
 .settings-btn { position: fixed; top: 12px; right: 12px; background: #020617; border: 2px solid #1e3a8a; color: #bfdbfe; font-family: inherit; padding: 6px 10px; cursor: pointer; z-index: 1001; }
 .settings-panel { position: fixed; top: 0; right: -400px; width: 400px; height: 100%; background: #020617; border-left: 2px solid #1e3a8a; padding: 14px; transition: right 0.35s ease; z-index: 1000; font-family: inherit; display: flex; flex-direction: column; overflow-y: auto; }
 .settings-panel.open { right: 0; }
-.users-btn { position: fixed; top: 12px; left: 12px; background: #020617; border: 2px solid #1e3a8a; color: #bfdbfe; font-family: inherit; padding: 6px 10px; cursor: pointer; z-index: 1001; }
-.users-panel { position: fixed; top: 0; left: -300px; width: 300px; height: 100%; background: #020617; border-right: 2px solid #1e3a8a; padding: 14px; transition: left 0.35s ease; z-index: 1000; font-family: inherit; overflow-y: auto; }
-.users-panel.open { left: 0; }
-.users-panel h3 { font-size: 12px; margin-bottom: 10px; }
-.user-row { display: flex; align-items: center; gap: 10px; border: 1px solid #1e3a8a; padding: 8px; margin-bottom: 8px; background: #0b1224; }
-.user-row img { width: 30px; height: 30px; border: 2px solid #1e3a8a; border-radius: 4px; }
-.user-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.user-name { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.user-status { font-size: 9px; opacity: 0.8; }
-.user-status.online { color: #86efac; }
-.user-status.offline { color: #94a3b8; }
 .settings-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
 .tab { flex: 1; font-family: inherit; background: #020617; border: 2px solid #1e3a8a; color: #bfdbfe; padding: 6px; cursor: pointer; font-size: 11px; }
 .tab.active { background: #1e3a8a; }
@@ -437,12 +413,6 @@ transform:scale(1.15);
 </div>
 
 <button class="settings-btn" onclick="toggleSettings()">⚙</button>
-<button class="users-btn" onclick="toggleUsersPanel()">users</button>
-
-<div class="users-panel" id="usersPanel">
-  <h3>online users</h3>
-  <div id="usersList"></div>
-</div>
 
 <div class="settings-panel" id="settingsPanel">
 <div class="settings-tabs">
@@ -645,7 +615,6 @@ width:320px;
 <span>Loading messages...</span>
 </div>
 <div class="chat-box" id="chatBox"></div>
-<div id="typingStatus" style="min-height:18px;padding:0 16px 6px 16px;font-size:10px;color:#93c5fd;"></div>
 <div class="input-box">
 <div class="connection-indicator" id="connectionIndicator" title="Checking connection..."></div>
 <button id="emojiBtn">😀</button>
@@ -683,8 +652,7 @@ import {
   query,
   limitToLast,
   onValue,
-  onChildRemoved,
-  onDisconnect
+  onChildRemoved
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 /* Firebase setup */
@@ -702,9 +670,10 @@ const app=initializeApp(firebaseConfig);
 const db=getDatabase(app);
 const auth = getAuth(app);
 const JSONBIN_BASE_URL = "https://api.jsonbin.io/v3/b";
+const JSONBIN_ACCESS_KEY = "$2a$10$T1k9bIUQG/tPk563G8sJuesPsLleH8yDlcCYGvL0M1q8IHQqwQxe6";
 
 function getJsonBinAccessKey() {
-  return localStorage.getItem("jsonbinAccessKey") || "";
+  return localStorage.getItem("jsonbinAccessKey") || JSONBIN_ACCESS_KEY;
 }
 
 import { get, ref as dbRef } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -758,11 +727,6 @@ onChildAdded(messagesQuery, async (snap) => {
     extraData = { uid: msg.uid, name: username };
   }
 
-  const side = (auth.currentUser && msg.uid === auth.currentUser.uid) ? "user" : "other";
-  if (shouldAnimateTypingForMessage(msg.ts)) {
-    await showTypingIndicator({ side, img: pfp });
-  }
-
   addMessage(
     username,
     msg.text,
@@ -804,45 +768,18 @@ setInterval(updateConnectionStatus,20000);
 const chatBox=document.getElementById("chatBox");
 const messageInput=document.getElementById("messageInput");
 const chatLoading = document.getElementById("chatLoading");
-const usersList = document.getElementById("usersList");
-const typingStatus = document.getElementById("typingStatus");
-const dynamicFavicon = document.getElementById("dynamicFavicon");
-const typingAnimationMinTs = Date.now();
 let username = localStorage.getItem("username");
 let userPFP = localStorage.getItem("pfp");
 let isOwner=false;
 let firstMessageLoaded=false;
 
-function hideChatLoadingOverlay() {
-if(firstMessageLoaded) return;
-firstMessageLoaded=true;
-chatLoading.style.opacity=0;
-chatBox.classList.add("loaded");
-setTimeout(()=>{ chatLoading.style.display="none"; },500);
-}
-let typingTimeout = null;
-let usersDirectory = {};
-let knownUsers = {};
-let typingFrameIndex = 0;
-let presenceDirectory = {};
-let currentUserUid = null;
-
 const profileCache = {};
 let lastNowPlaying = null; // tracks last track sent to chat
 
 function shouldAutoScroll() {
-  const distanceFromBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight;
-  return distanceFromBottom <= 2;
+  const threshold = 80;
+  return chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < threshold;
 }
-
-get(messagesQuery)
-  .then(() => {
-    hideChatLoadingOverlay();
-  })
-  .catch((err) => {
-    console.error("Initial messages load failed:", err);
-    hideChatLoadingOverlay();
-  });
 
 async function fetchProfileByUrl(profileUrl) {
   if (!profileUrl) return null;
@@ -909,88 +846,19 @@ const originalTitle = document.title;
 let unreadCount = 0;
 let windowFocused = true;
 
-function makeUnreadFavicon(count) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 32;
-  canvas.height = 32;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E";
-  if (count > 0) {
-    ctx.fillStyle = "#ef4444";
-    ctx.font = "bold 22px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    const label = count > 99 ? "99+" : String(count);
-    ctx.fillText(label, 16, 17);
-  }
-
-  return canvas.toDataURL("image/png");
-}
-
-function refreshUnreadUI() {
-  document.title = unreadCount > 0 ? `(${unreadCount}) ${originalTitle}` : originalTitle;
-  if (dynamicFavicon) {
-    dynamicFavicon.href = makeUnreadFavicon(unreadCount);
-  }
-  dynamicFavicon.href = makeUnreadFavicon(unreadCount);
-}
-
 window.addEventListener("focus", () => {
   windowFocused = true;
   unreadCount = 0;
-  refreshUnreadUI();
+  document.title = originalTitle;
 });
 
 window.addEventListener("blur", () => {
   windowFocused = false;
 });
-
-refreshUnreadUI();
   
 messageInput.addEventListener("keydown", e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(); } });
 
 function timeNow(){ return new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}); }
-
-function shouldAnimateTypingForMessage(ts) {
-  if (!ts) return false;
-  return ts >= typingAnimationMinTs;
-}
-
-function showTypingIndicator({ side, img }) {
-  return new Promise((resolve) => {
-    const stickToBottom = shouldAutoScroll();
-    const indicator = document.createElement("div");
-    indicator.className = `message ${side} typing-indicator`;
-
-    const safeImg = img || "https://via.placeholder.com/36";
-    indicator.innerHTML = `
-      ${side === "other" ? `<img src="${safeImg}">` : ``}
-      <div class="bubble"><span class="typing-dots">.</span></div>
-      ${side === "user" ? `<img src="${safeImg}">` : ``}
-    `;
-
-    const dots = indicator.querySelector(".typing-dots");
-    const frames = [".", "..", "..."];
-    let frameIndex = 0;
-
-    const intervalId = setInterval(() => {
-      frameIndex = (frameIndex + 1) % frames.length;
-      dots.textContent = frames[frameIndex];
-    }, 250);
-
-    chatBox.appendChild(indicator);
-
-    if (stickToBottom) {
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    setTimeout(() => {
-      clearInterval(intervalId);
-      indicator.remove();
-      resolve();
-    }, 900);
-  });
-}
 
 function addMessage(name,text,img,time,key,data){
 const stickToBottom = shouldAutoScroll();
@@ -1039,199 +907,23 @@ if (stickToBottom) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-hideChatLoadingOverlay();
-
-if (!windowFocused && side === "other") {
-  unreadCount += 1;
-  refreshUnreadUI();
+if(!firstMessageLoaded){
+firstMessageLoaded=true;
+chatLoading.style.opacity=0;
+chatBox.classList.add("loaded");
+setTimeout(()=>{ chatLoading.style.display="none"; },500);
 }
 }
 
-window.toggleUsersPanel = () => {
-  document.getElementById("usersPanel").classList.toggle("open");
-};
-
-function renderUsersDirectory() {
-  if (!usersList) return;
-  usersDirectory = { ...knownUsers };
-  const entries = Object.entries(usersDirectory);
-
-  if (!entries.length) {
-    usersList.innerHTML = `<div style="font-size:10px; opacity:0.7;">No users found yet.</div>`;
-    return;
+setTimeout(() => {
+  if (!firstMessageLoaded) {
+    chatLoading.style.opacity = 0;
+    chatBox.classList.add("loaded");
+    setTimeout(() => {
+      chatLoading.style.display = "none";
+    }, 500);
   }
-
-  entries.sort((a, b) => {
-    const aOnline = !!presenceDirectory[a[0]]?.online;
-    const bOnline = !!presenceDirectory[b[0]]?.online;
-    if (aOnline !== bOnline) return aOnline ? -1 : 1;
-    const aName = (a[1].username || "player").toLowerCase();
-    const bName = (b[1].username || "player").toLowerCase();
-    return aName.localeCompare(bName);
-  });
-
-  usersList.innerHTML = entries.map(([uid, data]) => {
-    const online = !!presenceDirectory[uid]?.online;
-    const safeName = data.username || "PLAYER";
-    const safePfp = data.pfp || "https://via.placeholder.com/36";
-    return `
-      <div class="user-row">
-        <img src="${safePfp}" alt="${safeName}">
-        <div class="user-meta">
-          <div class="user-name">${safeName}</div>
-          <div class="user-status ${online ? "online" : "offline"}">${online ? "online" : "offline"}</div>
-        </div>
-      </div>
-    `;
-  }).join("");
-}
-
-function upsertKnownUser(uid, payload = {}) {
-  if (!uid) return;
-  knownUsers[uid] = {
-    username: payload.username || knownUsers[uid]?.username || "PLAYER",
-    pfp: payload.pfp || knownUsers[uid]?.pfp || "https://via.placeholder.com/36"
-  };
-}
-
-async function refreshUsersDirectoryFromProfiles(snapshotValue) {
-  const rows = snapshotValue || {};
-
-  await Promise.all(Object.entries(rows).map(async ([uid, pointer]) => {
-    let profile = null;
-    if (pointer?.profileUrl) {
-      profile = await fetchProfileByUrl(pointer.profileUrl);
-    }
-
-    upsertKnownUser(uid, {
-      username: profile?.username || pointer?.username || "PLAYER",
-      pfp: profile?.pfp || pointer?.pfp || "https://via.placeholder.com/36"
-    });
-  }));
-
-  renderUsersDirectory();
-}
-
-function renderTypingStatus(typingMap) {
-  if (!typingStatus) return;
-  const activeTypers = Object.entries(typingMap || {}).filter(([uid, data]) => {
-    if (!data?.isTyping) return false;
-    if (!auth.currentUser) return false;
-    if (uid === auth.currentUser.uid) return false;
-    if (Date.now() - (data.ts || 0) > 5000) return false;
-    return true;
-  });
-  const names = activeTypers.map(([uid, data]) => data.username || knownUsers[uid]?.username || "PLAYER");
-
-  if (!names.length) {
-    typingStatus.textContent = "";
-    return;
-  }
-
-  if (names.length === 1) {
-    typingStatus.textContent = `${names[0]} is typing...`;
-    return;
-  }
-
-  if (names.length === 2) {
-    typingStatus.textContent = `${names[0]} and ${names[1]} are typing...`;
-    return;
-  }
-
-  typingStatus.textContent = `${names[0]}, ${names[1]} and ${names.length - 2} others are typing...`;
-}
-
-function setTypingState(isTyping) {
-  const uid = auth.currentUser?.uid || currentUserUid;
-  if (!uid) return;
-  const typingRef = ref(db, `typing/${uid}`);
-
-  if (!isTyping) {
-    remove(typingRef);
-    return;
-  }
-
-  set(typingRef, {
-    isTyping: true,
-    username: localStorage.getItem("username") || "PLAYER",
-    pfp: localStorage.getItem("pfp") || "https://via.placeholder.com/36",
-    ts: Date.now()
-  });
-}
-
-function setupTypingHandlers() {
-  if (!messageInput) return;
-  messageInput.addEventListener("input", () => {
-    const hasValue = !!messageInput.value.trim();
-    if (!hasValue) {
-      setTypingState(false);
-      if (typingTimeout) clearTimeout(typingTimeout);
-      return;
-    }
-
-    setTypingState(true);
-    if (typingTimeout) clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => setTypingState(false), 1200);
-  });
-}
-
-function setupPresenceTracking(user) {
-  const statusRef = ref(db, `presence/${user.uid}`);
-  const typingRef = ref(db, `typing/${user.uid}`);
-  const connectedRef = ref(db, ".info/connected");
-
-  onValue(connectedRef, (snap) => {
-    if (snap.val() !== true) return;
-
-    onDisconnect(statusRef).set({
-      online: false,
-      lastSeen: Date.now()
-    });
-    onDisconnect(typingRef).remove();
-
-    set(statusRef, {
-      online: true,
-      lastSeen: Date.now()
-    });
-  });
-}
-
-function initRealtimeExtras() {
-  setupTypingHandlers();
-
-  onValue(ref(db, "typing"), (snap) => {
-    const typingMap = snap.val() || {};
-    Object.entries(typingMap).forEach(([uid, data]) => {
-      upsertKnownUser(uid, data || {});
-    });
-    renderUsersDirectory();
-    renderTypingStatus(typingMap);
-  });
-
-  onValue(ref(db, "profiles"), async (snap) => {
-    await refreshUsersDirectoryFromProfiles(snap.val());
-  });
-
-  onValue(query(messagesRootRef, limitToLast(200)), (snap) => {
-    const rows = snap.val() || {};
-    Object.values(rows).forEach((msg) => {
-      if (msg?.uid) {
-        upsertKnownUser(msg.uid, { username: msg.username, pfp: msg.pfp });
-      }
-    });
-    renderUsersDirectory();
-  });
-
-  onValue(ref(db, "presence"), (snap) => {
-    presenceDirectory = snap.val() || {};
-    Object.keys(presenceDirectory).forEach((uid) => {
-      upsertKnownUser(uid, {});
-    });
-    renderUsersDirectory();
-  });
-}
-
-initRealtimeExtras();
+}, 1500);
 
 async function getProfileFromAccount(uid) {
   try {
@@ -1242,7 +934,10 @@ async function getProfileFromAccount(uid) {
         const fromJsonBin = await fetchProfileByUrl(profileRefData.profileUrl);
         if (fromJsonBin) return fromJsonBin;
       }
-      return profileRefData;
+      if (profileRefData?.profileData && typeof profileRefData.profileData === "object") {
+        return profileRefData.profileData;
+      }
+      return profileRefData || {};
     } else {
       return {};
     }
@@ -1262,8 +957,6 @@ window.sendMessage = async () => {
   if (!text) return;
 
   messageInput.value = "";
-  setTypingState(false);
-  if (typingTimeout) clearTimeout(typingTimeout);
 
   const uid = auth.currentUser.uid;
 
@@ -1341,6 +1034,48 @@ window.saveProfile = () => {
 };
 
 /* CUSTOM TAB BUTTONS */
+function safeSetLocalStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err) {
+    console.error(`Failed to save ${key} locally:`, err);
+    showStatusPopup("Storage is full. Use a smaller image and try again.", 3200);
+    return false;
+  }
+}
+
+function optimizeImageFile(file, {
+  maxWidth = 1400,
+  maxHeight = 500,
+  mimeType = "image/jpeg",
+  quality = 0.82
+} = {}) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(maxWidth / img.width, maxHeight / img.height, 1);
+        const width = Math.max(1, Math.round(img.width * scale));
+        const height = Math.max(1, Math.round(img.height * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas unavailable."));
+
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL(mimeType, quality));
+      };
+      img.onerror = () => reject(new Error("Invalid image file."));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error("Failed to read file."));
+    reader.readAsDataURL(file);
+  });
+}
 
 document.getElementById("setUsernameBtn").onclick = () => {
   const val = document.getElementById("usernameInput").value.trim();
@@ -1390,13 +1125,14 @@ document.getElementById("setBannerBtn").onclick = () => {
   const file = document.getElementById("bannerUpload").files[0];
   if (!file) return alert("Select a banner first.");
 
-  const reader = new FileReader();
-  reader.onload = e => {
-    localStorage.setItem("banner", e.target.result);
+  optimizeImageFile(file).then(optimizedBanner => {
+    if (!safeSetLocalStorage("banner", optimizedBanner)) return;
     saveProfileToAccount();
     alert("Banner updated.");
-  };
-  reader.readAsDataURL(file);
+  }).catch(err => {
+    console.error("Banner processing failed:", err);
+    showStatusPopup("Couldn't process banner image.", 2600);
+  });
 };
 
 document.getElementById("setColorBtn").onclick = () => {
@@ -1410,7 +1146,7 @@ document.getElementById("setCardBgBtn").onclick = () => {
   const color = document.getElementById("cardBgColorPicker").value;
 
   // Save to localStorage
-  localStorage.setItem("profileCardBg", color);
+  if (!safeSetLocalStorage("profileCardBg", color)) return;
 
   // Update profile card background immediately
   const profileCard = document.querySelector(".profile-card");
@@ -1426,7 +1162,7 @@ document.getElementById("setColorBtn").onclick = () => {
   const color = document.getElementById("colorPicker").value;
 
   // Save to localStorage
-  localStorage.setItem("profileColor", color);
+  if (!safeSetLocalStorage("profileColor", color)) return;
 
   // Update profile card border immediately
   const profileCard = document.querySelector(".profile-card");
@@ -1439,6 +1175,26 @@ document.getElementById("setColorBtn").onclick = () => {
 };
 
 function getProfileLayout() {
+  const parseStoredJson = (key, fallback) => {
+    const raw = localStorage.getItem(key);
+    if (raw === null || raw === undefined || raw === "") return fallback;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed === null || parsed === undefined) return fallback;
+      return parsed;
+    } catch {
+      // Backward compatibility for older/plain-string storage formats.
+      if (key === "badges") {
+        return raw
+          .split(",")
+          .map(v => v.trim())
+          .filter(Boolean);
+      }
+      return fallback;
+    }
+  };
+
   return {
     username: localStorage.getItem("username") || "",
     displayName: localStorage.getItem("displayName") || "",
@@ -1450,12 +1206,49 @@ function getProfileLayout() {
     profileCardBg: localStorage.getItem("profileCardBg") || "#111111",
     pfp: localStorage.getItem("pfp") || "",
     lastFmUser: localStorage.getItem("lastFmUser") || "",
-    badges: JSON.parse(localStorage.getItem("badges") || "[]"),
+    badges: parseStoredJson("badges", []),
     joinDate: localStorage.getItem("joinDate") || "",
-    socials: JSON.parse(localStorage.getItem("socials") || "{}"),
+    socials: parseStoredJson("socials", {}),
     favoriteSong: localStorage.getItem("favoriteSong") || "",
     messageCount: parseInt(localStorage.getItem("messageCount") || "0")
   };
+}
+
+const MAX_PROFILE_IMAGE_BYTES = 900 * 1024; // keep profile docs well under remote payload limits
+
+function estimateDataUrlBytes(value) {
+  if (typeof value !== "string" || !value.startsWith("data:")) return 0;
+  const commaIndex = value.indexOf(",");
+  if (commaIndex === -1) return value.length;
+
+  const meta = value.slice(0, commaIndex);
+  const payload = value.slice(commaIndex + 1);
+
+  if (meta.includes(";base64")) {
+    const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
+    return Math.max(0, Math.floor((payload.length * 3) / 4) - padding);
+  }
+
+  try {
+    return decodeURIComponent(payload).length;
+  } catch {
+    return payload.length;
+  }
+}
+
+function getSyncSafeProfileData(layout) {
+  const syncData = { ...layout };
+  const droppedFields = [];
+
+  ["pfp", "banner"].forEach(field => {
+    const bytes = estimateDataUrlBytes(syncData[field]);
+    if (bytes > MAX_PROFILE_IMAGE_BYTES) {
+      syncData[field] = "";
+      droppedFields.push(field);
+    }
+  });
+
+  return { syncData, droppedFields };
 }
 
 function hydrateProfileFields(layout) {
@@ -1964,20 +1757,9 @@ loginFeedback.style.color="red";
 
 onAuthStateChanged(auth,(user)=>{
 if(user){
-currentUserUid = user.uid;
 loginScreen.style.display="none";
-setupPresenceTracking(user);
 }else{
-if (currentUserUid) {
-  set(ref(db, `presence/${currentUserUid}`), {
-    online: false,
-    lastSeen: Date.now()
-  });
-}
 loginScreen.style.display="flex";
-setTypingState(false);
-typingStatus.textContent = "";
-currentUserUid = null;
 }
 });
 
@@ -2040,17 +1822,29 @@ async function saveProfileToAccount() {
 
   try {
     const uid = auth.currentUser.uid;
-    const profileData = getProfileLayout();
-    const pointer = await upsertProfileToJsonBin(profileData);
-
-    await set(ref(db, `profiles/${uid}`), {
+    const localProfileData = getProfileLayout();
+    const { syncData: profileData, droppedFields } = getSyncSafeProfileData(localProfileData);
+    const profileDoc = {
       uid,
-      profileUrl: pointer.profileUrl,
-      profileBinId: pointer.binId,
+      profileData,
       updatedAt: Date.now()
-    });
+    };
 
-    console.log("Profile saved to JSONBin + Firebase pointer.");
+    try {
+      const pointer = await upsertProfileToJsonBin(profileData);
+      profileDoc.profileUrl = pointer.profileUrl;
+      profileDoc.profileBinId = pointer.binId;
+    } catch (jsonBinError) {
+      console.warn("JSONBin unavailable, saving profile directly to Firebase.", jsonBinError);
+    }
+
+    await set(ref(db, `profiles/${uid}`), profileDoc);
+
+    if (droppedFields.length) {
+      showStatusPopup("Saved, but large image data was skipped for cloud sync.", 3200);
+    }
+
+    console.log("Profile saved to account storage.");
   } catch (err) {
     console.error("Failed to save profile:", err);
     showStatusPopup("Profile save failed.", 2500);
@@ -2076,13 +1870,17 @@ onValue(profileRef, async (snap)=>{
   }
 
   const profileData = data.profileUrl ? await fetchProfileByUrl(data.profileUrl) : null;
-  if (profileData) {
-    Object.keys(profileData).forEach(k => {
-      if (profileData[k] !== undefined && profileData[k] !== null) {
-        if (typeof profileData[k] === "object") {
-          localStorage.setItem(k, JSON.stringify(profileData[k]));
+  const resolvedProfileData =
+    profileData ||
+    (data.profileData && typeof data.profileData === "object" ? data.profileData : null);
+
+  if (resolvedProfileData) {
+    Object.keys(resolvedProfileData).forEach(k => {
+      if (resolvedProfileData[k] !== undefined && resolvedProfileData[k] !== null) {
+        if (typeof resolvedProfileData[k] === "object") {
+          localStorage.setItem(k, JSON.stringify(resolvedProfileData[k]));
         } else {
-          localStorage.setItem(k, profileData[k]);
+          localStorage.setItem(k, resolvedProfileData[k]);
         }
       }
     });
@@ -2107,13 +1905,12 @@ alert("Hey! wolfchat is adding accounts.\n\nPlease sign up with an email + passw
 
 /* EMOJI PICKER */
 
-window.addEventListener("DOMContentLoaded", async () => {
+window.addEventListener("DOMContentLoaded", () => {
+
   const emojiBtn = document.getElementById("emojiBtn");
   const emojiPickerContainer = document.getElementById("emojiPicker");
 
-  const { Picker } = await import("https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js");
-
-  const picker = new Picker({
+  const picker = new EmojiMart.Picker({
     theme: "dark",
     previewPosition: "none",
     onEmojiSelect: (emoji) => {
@@ -2125,8 +1922,11 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   emojiBtn.onclick = () => {
     emojiPickerContainer.style.display =
-      emojiPickerContainer.style.display === "block" ? "none" : "block";
+      emojiPickerContainer.style.display === "block"
+        ? "none"
+        : "block";
   };
+
 });
 
 </script>
